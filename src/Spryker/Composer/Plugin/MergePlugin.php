@@ -30,6 +30,11 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
     private const CALLBACK_PRIORITY = 50000;
 
     /**
+     * @var bool
+     */
+    protected $isFirstInstall = false;
+
+    /**
      * @var \Composer\Composer
      */
     protected $composer;
@@ -66,6 +71,9 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
     {
         return [
             ScriptEvents::PRE_AUTOLOAD_DUMP => ['preAutoloadDump', static::CALLBACK_PRIORITY],
+            ScriptEvents::POST_INSTALL_CMD => ['postInstallOrUpdate', static::CALLBACK_PRIORITY],
+            ScriptEvents::POST_UPDATE_CMD => ['postInstallOrUpdate', static::CALLBACK_PRIORITY],
+            ScriptEvents::POST_PACKAGE_INSTALL => ['postPackageInstall', static::CALLBACK_PRIORITY],
         ];
     }
 
@@ -104,5 +112,53 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
         $extraPackage = new ExtraPackage($path);
         $this->logger->write(sprintf('Loading <comment>%s</comment>...', $path));
         $extraPackage->mergeAutoload($root);
+    }
+
+    /**
+     * @param PackageEvent $event
+     *
+     * @return void
+     */
+    public function postPackageInstall(PackageEvent $event)
+    {
+        $operation = $event->getOperation();
+        if ($operation instanceof InstallOperation) {
+            $package = $operation->getPackage()->getName();
+            if ($package === 'spryker/composer-merge-plugin') {
+                $this->logger->info('spryker/composer-merge-plugin installed');
+                $this->isFirstInstall = true;
+            }
+        }
+    }
+
+    /**
+     * @param ScriptEvent $event
+     *
+     * @return void
+     */
+    public function postInstallOrUpdate(ScriptEvent $event): void
+    {
+        if ($this->isFirstInstall) {
+            $this->isFirstInstall = false;
+            $this->logger->info('<comment>Running additional update to apply autoload and autoload-dev merge</comment>');
+
+            $config = $this->composer->getConfig();
+
+            $preferSource = $config->get('preferred-install') == 'source';
+            $preferDist = $config->get('preferred-install') == 'dist';
+
+            $installer = Installer::create(
+                $event->getIO(),
+                Factory::create($event->getIO(), null, false)
+            );
+
+            $installer->setPreferSource($preferSource);
+            $installer->setPreferDist($preferDist);
+            $installer->setDevMode($event->isDevMode());
+            $installer->setDumpAutoloader(true);
+            $installer->setOptimizeAutoloader(false);
+            $installer->setUpdate(true);
+            $installer->run();
+        }
     }
 }
