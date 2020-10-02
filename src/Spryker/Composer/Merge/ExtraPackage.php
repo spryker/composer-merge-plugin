@@ -65,6 +65,10 @@ class ExtraPackage
         $file = new JsonFile($path);
         $json = $file->read();
 
+        if (!isset($json['version'])) {
+            $json['version'] = '1.0.0';
+        }
+
         return $json;
     }
 
