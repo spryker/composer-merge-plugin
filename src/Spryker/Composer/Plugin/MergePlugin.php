@@ -9,21 +9,16 @@ namespace Spryker\Composer\Plugin;
 
 use Composer\Composer;
 use Composer\DependencyResolver\Operation\InstallOperation;
-use Composer\EventDispatcher\Event as BaseEvent;
 use Composer\EventDispatcher\EventSubscriberInterface;
 use Composer\Factory;
 use Composer\Installer;
 use Composer\Installer\PackageEvent;
-use Composer\Installer\PackageEvents;
 use Composer\IO\IOInterface;
 use Composer\Package\RootPackageInterface;
-use Composer\Plugin\PluginEvents;
 use Composer\Plugin\PluginInterface;
 use Composer\Script\Event as ScriptEvent;
 use Composer\Script\ScriptEvents;
-use Spryker\Composer\Logger\Logger;
 use Spryker\Composer\Merge\ExtraPackage;
-use Spryker\Composer\Merge\PluginState;
 
 class MergePlugin implements PluginInterface, EventSubscriberInterface
 {
@@ -40,7 +35,7 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
     protected $composer;
 
     /**
-     * @var IOInterface
+     * @var \Composer\IO\IOInterface
      */
     protected $logger;
 
@@ -62,6 +57,26 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
     {
         $this->composer = $composer;
         $this->logger = $io;
+    }
+
+    /**
+     * @param \Composer\Composer $composer
+     * @param \Composer\IO\IOInterface $io
+     *
+     * @return void
+     */
+    public function deactivate(Composer $composer, IOInterface $io)
+    {
+    }
+
+    /**
+     * @param \Composer\Composer $composer
+     * @param \Composer\IO\IOInterface $io
+     *
+     * @return void
+     */
+    public function uninstall(Composer $composer, IOInterface $io)
+    {
     }
 
     /**
@@ -115,7 +130,7 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
     }
 
     /**
-     * @param PackageEvent $event
+     * @param \Composer\Installer\PackageEvent $event
      *
      * @return void
      */
@@ -132,7 +147,7 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
     }
 
     /**
-     * @param ScriptEvent $event
+     * @param \Composer\Script\Event $event
      *
      * @return void
      */
