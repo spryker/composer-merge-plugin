@@ -1,0 +1,35 @@
+{
+    "name": "spryker/composer-merge-plugin",
+    "description": "Composer plugin to merge multiple autoload and autoload-dev from composer.json files",
+    "type": "composer-plugin",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "René Klatt",
+            "email": "rene.klatt@spryker.com"
+        }
+    ],
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "require": {
+        "composer-plugin-api": "^1.1",
+        "php": ">=7.3.0"
+    },
+    "require-dev": {
+        "composer/composer": "^1.1.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Spryker\\Composer\\": "src/"
+        }
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-master": "1.0.x-dev"
+        },
+        "class": "Spryker\\Composer\\Plugin\\MergePlugin"
+    },
+    "config": {
+        "optimize-autoloader": true
+    }
+}
