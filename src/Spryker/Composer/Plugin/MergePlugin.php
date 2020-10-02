@@ -110,7 +110,7 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
     protected function mergeFile(RootPackageInterface $root, string $path): void
     {
         $extraPackage = new ExtraPackage($path);
-        $this->logger->write(sprintf('Loading <comment>%s</comment>...', $path));
+        $this->logger->info(sprintf('Loading <comment>%s</comment>', $path));
         $extraPackage->mergeAutoload($root);
     }
 
