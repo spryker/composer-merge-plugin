@@ -193,6 +193,10 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
         /** @var InputInterface $input */
         $input = $inputReflection->getValue($io);
 
+        if (!$input->hasOption($optionName)) {
+            return false;
+        }
+
         return $input->getOption($optionName);
     }
 }
