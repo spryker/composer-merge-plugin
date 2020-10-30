@@ -20,6 +20,7 @@ use Composer\Plugin\PluginInterface;
 use Composer\Script\Event as ScriptEvent;
 use Composer\Script\ScriptEvents;
 use Spryker\Composer\Merge\ExtraPackage;
+use Symfony\Component\Console\Input\InputInterface;
 
 class MergePlugin implements PluginInterface, EventSubscriberInterface
 {
@@ -38,7 +39,7 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
     /**
      * @var \Composer\IO\IOInterface
      */
-    protected $logger;
+    protected $io;
 
     /**
      * @var string[]
@@ -57,7 +58,7 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
     public function activate(Composer $composer, IOInterface $io): void
     {
         $this->composer = $composer;
-        $this->logger = $io;
+        $this->io = $io;
     }
 
     /**
@@ -126,7 +127,7 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
     protected function mergeFile(RootPackageInterface $root, string $path): void
     {
         $extraPackage = new ExtraPackage($path);
-        $this->logger->info(sprintf('Loading <comment>%s</comment>', $path));
+        $this->io->info(sprintf('Loading <comment>%s</comment>', $path));
         $extraPackage->mergeAutoload($root);
     }
 
@@ -141,7 +142,7 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
         if ($operation instanceof InstallOperation) {
             $package = $operation->getPackage()->getName();
             if ($package === 'spryker/composer-merge-plugin') {
-                $this->logger->info('spryker/composer-merge-plugin installed');
+                $this->io->info('spryker/composer-merge-plugin installed');
                 $this->isFirstInstall = true;
             }
         }
@@ -156,12 +157,12 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
     {
         if ($this->isFirstInstall) {
             $this->isFirstInstall = false;
-            $this->logger->info('<comment>Running additional update to apply autoload and autoload-dev merge</comment>');
+            $this->io->info('<comment>Running additional update to apply autoload and autoload-dev merge</comment>');
 
             $config = $this->composer->getConfig();
 
-            $preferSource = $config->get('preferred-install') == 'source';
-            $preferDist = $config->get('preferred-install') == 'dist';
+            $preferSource = $config->get('preferred-install') === 'source';
+            $preferDist = $config->get('preferred-install') === 'dist';
 
             $installer = Installer::create(
                 $event->getIO(),
@@ -172,9 +173,26 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
             $installer->setPreferDist($preferDist);
             $installer->setDevMode($event->isDevMode());
             $installer->setDumpAutoloader(true);
-            $installer->setOptimizeAutoloader(false);
+            $installer->setOptimizeAutoloader($this->getOption($event->getIO(), 'optimize-autoloader'));
+            $installer->setPreferLowest($this->getOption($event->getIO(), 'prefer-lowest'));
             $installer->setUpdate(true);
             $installer->run();
         }
+    }
+
+    /**
+     * @return bool
+     */
+    protected function getOption(IOInterface $io, string $optionName): bool
+    {
+        $ioReflection = new \ReflectionClass($io);
+
+        $inputReflection = $ioReflection->getProperty('input');
+        $inputReflection->setAccessible(true);
+
+        /** @var InputInterface $input */
+        $input = $inputReflection->getValue($io);
+
+        return $input->getOption($optionName);
     }
 }
