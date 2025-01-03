@@ -46,6 +46,7 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
      */
     protected $includes = [
         'vendor/spryker/spryker/Bundles/*/composer.json',
+        'vendor/spryker/spryker/Features/*/composer.json',
         'vendor/spryker/spryker-shop/Bundles/*/composer.json',
     ];
 
