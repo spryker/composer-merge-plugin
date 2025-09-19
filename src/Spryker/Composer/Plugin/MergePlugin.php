@@ -176,7 +176,7 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
             $installer->setDumpAutoloader(true);
             $installer->setOptimizeAutoloader($this->getOption($event->getIO(), 'optimize-autoloader'));
             $installer->setPreferLowest($this->getOption($event->getIO(), 'prefer-lowest'));
-            $installer->setUpdate(true);
+            $installer->setUpdate(false);
             $installer->run();
         }
     }
