@@ -103,6 +103,7 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
     public function preAutoloadDump(ScriptEvent $event): void
     {
         $this->mergeFiles();
+        $this->addProjectWildCard();
     }
 
     /**
@@ -199,5 +200,38 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
         }
 
         return $input->getOption($optionName);
+    }
+
+    public function addProjectWildCard(): void
+    {
+        $package  = $this->composer->getPackage();
+        $extra    = $package->getExtra();
+        $mapping  = $extra['psr4-wildcard'] ?? [];
+        if (!$mapping || !is_array($mapping)) {
+            return;
+        }
+
+        $autoload = $package->getAutoload();
+        $psr4     = $autoload['psr-4'] ?? [];
+        $root     = getcwd();
+
+        foreach ($mapping as $namespace => $pattern) {
+            $dirs = glob($pattern, GLOB_ONLYDIR) ?: [];
+            $rels = array_map(function ($abs) use ($root) {
+                $rel = ltrim(str_replace('\\', '/', str_replace($root, '', $abs)), '/');
+                return rtrim($rel, '/') . '/';
+            }, $dirs);
+
+            $existing = $psr4[$namespace] ?? [];
+            $existing = is_array($existing) ? $existing : [$existing];
+
+            $psr4[$namespace] = array_values(array_unique(array_merge($existing, $rels)));
+            $this->io->info(
+                sprintf('<info>psr4-wildcard</info>: %s -> %d dirs', $namespace, count($rels))
+            );
+        }
+
+        $autoload['psr-4'] = $psr4;
+        $package->setAutoload($autoload);
     }
 }
