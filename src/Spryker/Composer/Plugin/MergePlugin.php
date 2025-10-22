@@ -104,6 +104,7 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
     {
         $this->mergeFiles();
         $this->addProjectWildCard();
+        $this->addSplitNamespaces();
     }
 
     /**
@@ -202,7 +203,7 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
         return $input->getOption($optionName);
     }
 
-    public function addProjectWildCard(): void
+    protected function addProjectWildCard(): void
     {
         $package  = $this->composer->getPackage();
         $extra    = $package->getExtra();
@@ -215,20 +216,73 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
         $psr4     = $autoload['psr-4'] ?? [];
         $root     = getcwd();
 
-        foreach ($mapping as $namespace => $pattern) {
-            $dirs = glob($pattern, GLOB_ONLYDIR) ?: [];
-            $rels = array_map(function ($abs) use ($root) {
-                $rel = ltrim(str_replace('\\', '/', str_replace($root, '', $abs)), '/');
-                return rtrim($rel, '/') . '/';
-            }, $dirs);
+        foreach ($mapping as $namespaceNamespace => $pattern) {
+            $dirs = glob($pattern . '*' . DIRECTORY_SEPARATOR, GLOB_ONLYDIR) ?: [];
+            $modules = [];
+            foreach ($dirs as $dir) {
+                $pathParts = explode(DIRECTORY_SEPARATOR, trim($dir, DIRECTORY_SEPARATOR));
+                $modules[] = end($pathParts);
+            }
+            $modules = array_unique($modules);
 
-            $existing = $psr4[$namespace] ?? [];
-            $existing = is_array($existing) ? $existing : [$existing];
+            foreach ($modules as $module) {
+                $namespace = $namespaceNamespace . $module . '\\';
+                $dirs = glob($pattern . DIRECTORY_SEPARATOR . $module . DIRECTORY_SEPARATOR, GLOB_ONLYDIR) ?: [];
+                $rels = array_map(function ($abs) use ($root) {
+                    $rel = ltrim(str_replace('\\', '/', str_replace($root, '', $abs)), '/');
+                    return rtrim($rel, '/') . '/';
+                }, $dirs);
 
-            $psr4[$namespace] = array_values(array_unique(array_merge($existing, $rels)));
-            $this->io->info(
-                sprintf('<info>psr4-wildcard</info>: %s -> %d dirs', $namespace, count($rels))
-            );
+                $existing = $psr4[$namespace] ?? [];
+                $existing = is_array($existing) ? $existing : [$existing];
+
+                $psr4[$namespace] = array_values(array_unique(array_merge($existing, $rels)));
+                $this->io->info(
+                    sprintf('<info>psr4-wildcard</info>: %s -> %d dirs', $namespace, count($rels))
+                );
+            }
+        }
+
+        $autoload['psr-4'] = $psr4;
+        $package->setAutoload($autoload);
+    }
+
+    protected function addSplitNamespaces(): void
+    {
+        $package  = $this->composer->getPackage();
+        $namespacesToSplit = $package->getExtra()['splitting']['namespaces'] ?? ['Spryker\\'];
+
+        $autoload = $package->getAutoload();
+        $psr4     = $autoload['psr-4'] ?? [];
+        $root     = getcwd();
+
+        foreach ($namespacesToSplit as $namespace) {
+            if (!isset($psr4[$namespace])) {
+                continue;
+            }
+
+            $unprocessedFolders = [];
+            foreach ($psr4[$namespace] as $folder) {
+                $folderProcessed = false;
+                $dirs = glob($folder . '*' . DIRECTORY_SEPARATOR . '*' . DIRECTORY_SEPARATOR, GLOB_ONLYDIR) ?: [];
+                foreach ($dirs as $dir) {
+                    $pathParts = explode(DIRECTORY_SEPARATOR, trim($dir, DIRECTORY_SEPARATOR));
+                    $module = array_pop($pathParts);
+                    $layer = array_pop($pathParts);
+                    if (in_array($layer, ['Shared', 'Service', 'Client', 'Yves', 'Glue', 'Zed']) === false) {
+                        continue;
+                    }
+                    $psr4[$namespace . $layer . '\\' . $module . '\\'] = [$dir];
+                    $folderProcessed = true;
+                }
+                if (!$folderProcessed) {
+                    $unprocessedFolders[] = $folder;
+                }
+            }
+            unset($psr4[$namespace]);
+            if (count($unprocessedFolders) > 1) {
+                $psr4[$namespace] = $unprocessedFolders;
+            }
         }
 
         $autoload['psr-4'] = $psr4;
