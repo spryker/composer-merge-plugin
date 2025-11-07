@@ -9,6 +9,7 @@ namespace Spryker\Composer\Plugin;
 
 use Composer\Composer;
 use Composer\DependencyResolver\Operation\InstallOperation;
+use Composer\DependencyResolver\Operation\UpdateOperation;
 use Composer\EventDispatcher\EventSubscriberInterface;
 use Composer\Factory;
 use Composer\Installer;
@@ -41,6 +42,8 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
      */
     protected $io;
 
+    private \Composer\Installer\BinaryInstaller $binaryInstaller;
+
     /**
      * @var string[]
      */
@@ -60,6 +63,11 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
     {
         $this->composer = $composer;
         $this->io = $io;
+        $this->binaryInstaller = new \Composer\Installer\BinaryInstaller(
+            $io,
+            $this->composer->getConfig()->get('bin-dir'),
+            $this->composer->getConfig()->get('bin-compat'),
+        );
     }
 
     /**
@@ -89,10 +97,39 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
     {
         return [
             ScriptEvents::PRE_AUTOLOAD_DUMP => ['preAutoloadDump', static::CALLBACK_PRIORITY],
+            ScriptEvents::PRE_INSTALL_CMD => ['preInstallOrUpdate', static::CALLBACK_PRIORITY],
             ScriptEvents::POST_INSTALL_CMD => ['postInstallOrUpdate', static::CALLBACK_PRIORITY],
+            ScriptEvents::PRE_UPDATE_CMD => ['preInstallOrUpdate', static::CALLBACK_PRIORITY],
             ScriptEvents::POST_UPDATE_CMD => ['postInstallOrUpdate', static::CALLBACK_PRIORITY],
             PackageEvents::POST_PACKAGE_INSTALL => ['postPackageInstall', static::CALLBACK_PRIORITY],
         ];
+    }
+
+    /**
+     * @param \Composer\Script\Event $event
+     *
+     * @return void
+     */
+    public function preInstallOrUpdate(ScriptEvent $event)
+    {
+        $root = $this->composer->getPackage();
+
+        $files = array_map('glob', $this->includes);
+
+        $repaces = $root->getReplaces();
+        foreach (array_reduce($files, 'array_merge', []) as $path) {
+            $string = file_get_contents($path);
+            $json_a = json_decode($string, true);
+            $name = $json_a['name'];
+            $repaces[$name] = new \Composer\Package\Link(
+                $root->getName(),
+                $name,
+                new \Composer\Semver\Constraint\MatchAllConstraint(),
+                'replaces',
+                '*',
+            );
+        }
+        $root->setReplaces($repaces);
     }
 
     /**
@@ -181,6 +218,7 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
             $installer->setUpdate(false);
             $installer->run();
         }
+        $this->installVirtualBins();
     }
 
     /**
@@ -250,7 +288,7 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
     protected function addSplitNamespaces(): void
     {
         $package  = $this->composer->getPackage();
-        $namespacesToSplit = $package->getExtra()['splitting']['namespaces'] ?? ['Spryker\\'];
+        $namespacesToSplit = $package->getExtra()['splitting']['namespaces'] ?? [];
 
         $autoload = $package->getAutoload();
         $psr4     = $autoload['psr-4'] ?? [];
@@ -270,6 +308,9 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
                     $module = array_pop($pathParts);
                     $layer = array_pop($pathParts);
                     if (in_array($layer, ['Shared', 'Service', 'Client', 'Yves', 'Glue', 'Zed']) === false) {
+                        // Processes modules that does not follow Spryker module structure like src/SprykerShop/DateTimeConfiguratorPageExample/src/SprykerShop/Configurator/
+                        $psr4[$namespace . $layer . '\\'] = [implode('/', $pathParts). DIRECTORY_SEPARATOR . $layer];
+                        $folderProcessed = true;
                         continue;
                     }
                     $psr4[$namespace . $layer . '\\' . $module . '\\'] = [$dir];
@@ -287,5 +328,20 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
 
         $autoload['psr-4'] = $psr4;
         $package->setAutoload($autoload);
+    }
+
+    public function installVirtualBins(): void
+    {
+        $root = getcwd();
+        $package  = $this->composer->getPackage();
+        $binDir = $this->composer->getConfig()->get('bin-dir');
+
+        if (!is_dir($binDir)) {
+            mkdir($binDir, 0777, true);
+        }
+
+        $im = $this->composer->getInstallationManager();
+
+        $this->binaryInstaller->installBinaries($package, $root);
     }
 }
