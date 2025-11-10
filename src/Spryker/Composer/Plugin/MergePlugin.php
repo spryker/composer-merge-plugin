@@ -112,6 +112,7 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
      */
     public function preInstallOrUpdate(ScriptEvent $event)
     {
+        return;
         $root = $this->composer->getPackage();
 
         $files = array_map('glob', $this->includes);
