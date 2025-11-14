@@ -142,6 +142,7 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
         $this->mergeFiles();
         $this->addProjectWildCard();
         $this->addSplitNamespaces();
+        $this->installVirtualBins();
     }
 
     /**
