@@ -104,7 +104,6 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
     {
         $this->mergeFiles();
         $this->addProjectWildCard();
-        $this->addSplitNamespaces();
     }
 
     /**
@@ -240,48 +239,6 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
                 $this->io->info(
                     sprintf('<info>psr4-wildcard</info>: %s -> %d dirs', $namespace, count($rels))
                 );
-            }
-        }
-
-        $autoload['psr-4'] = $psr4;
-        $package->setAutoload($autoload);
-    }
-
-    protected function addSplitNamespaces(): void
-    {
-        $package  = $this->composer->getPackage();
-        $namespacesToSplit = $package->getExtra()['splitting']['namespaces'] ?? ['Spryker\\'];
-
-        $autoload = $package->getAutoload();
-        $psr4     = $autoload['psr-4'] ?? [];
-        $root     = getcwd();
-
-        foreach ($namespacesToSplit as $namespace) {
-            if (!isset($psr4[$namespace])) {
-                continue;
-            }
-
-            $unprocessedFolders = [];
-            foreach ($psr4[$namespace] as $folder) {
-                $folderProcessed = false;
-                $dirs = glob($folder . '*' . DIRECTORY_SEPARATOR . '*' . DIRECTORY_SEPARATOR, GLOB_ONLYDIR) ?: [];
-                foreach ($dirs as $dir) {
-                    $pathParts = explode(DIRECTORY_SEPARATOR, trim($dir, DIRECTORY_SEPARATOR));
-                    $module = array_pop($pathParts);
-                    $layer = array_pop($pathParts);
-                    if (in_array($layer, ['Shared', 'Service', 'Client', 'Yves', 'Glue', 'Zed']) === false) {
-                        continue;
-                    }
-                    $psr4[$namespace . $layer . '\\' . $module . '\\'] = [$dir];
-                    $folderProcessed = true;
-                }
-                if (!$folderProcessed) {
-                    $unprocessedFolders[] = $folder;
-                }
-            }
-            unset($psr4[$namespace]);
-            if (count($unprocessedFolders) > 1) {
-                $psr4[$namespace] = $unprocessedFolders;
             }
         }
 
