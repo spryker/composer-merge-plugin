@@ -230,7 +230,6 @@ class MergePlugin implements PluginInterface, EventSubscriberInterface
         $ioReflection = new \ReflectionClass($io);
 
         $inputReflection = $ioReflection->getProperty('input');
-        $inputReflection->setAccessible(true);
 
         /** @var InputInterface $input */
         $input = $inputReflection->getValue($io);
